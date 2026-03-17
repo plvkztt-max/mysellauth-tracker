@@ -102,19 +102,43 @@ async function checkShops() {
   for (const s of subs) {
     if (!seen.includes(s)) {
       const isLive = await checkLive(s);
+      const status = isLive ? 'live' : 'dead';
+      const lastChecked = Date.now();
+
       if (isLive) {
         const shotPath = await screenshot(s);
         console.log(`New LIVE shop: ${s}`);
 
         await sendDiscord(s, shotPath);
-
-        // Live dashboard update
-        socket.emit("newShop", s);
       } else {
-        console.log(`Skipped offline shop: ${s}`);
+        console.log(`New DEAD shop: ${s}`);
       }
+
+      // Update dashboard with full shop data
+      const shopData = {
+        domain: s,
+        status: status,
+        discoveredAt: lastChecked,
+        lastChecked: lastChecked
+      };
+
+      socket.emit("newShop", shopData);
+
       seen.push(s);
       saveSeen();
+    } else {
+      // Update existing shops' status
+      const isLive = await checkLive(s);
+      const status = isLive ? 'live' : 'dead';
+      const lastChecked = Date.now();
+
+      const shopData = {
+        domain: s,
+        status: status,
+        lastChecked: lastChecked
+      };
+
+      socket.emit("shopUpdate", shopData);
     }
   }
 }

@@ -1,40 +1,270 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Live mysellauth.com Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SellAuth Domain Tracker - Live Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <script src="/socket.io/socket.io.js"></script>
+  <style>
+    .status-live { color: #28a745; }
+    .status-dead { color: #dc3545; }
+    .status-checking { color: #ffc107; }
+    .card { transition: transform 0.2s; }
+    .card:hover { transform: translateY(-2px); }
+    .screenshot { max-height: 200px; object-fit: cover; }
+    .stats-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .last-updated { font-size: 0.8em; color: #6c757d; }
+  </style>
 </head>
 <body class="bg-dark text-white">
+  <nav class="navbar navbar-dark bg-black">
+    <div class="container">
+      <a class="navbar-brand" href="#">
+        <i class="fas fa-chart-line me-2"></i>
+        SellAuth Domain Tracker
+      </a>
+      <div class="d-flex align-items-center">
+        <span class="me-3" id="connection-status">
+          <i class="fas fa-circle text-success"></i> Connected
+        </span>
+        <span id="last-updated" class="text-muted small"></span>
+      </div>
+    </div>
+  </nav>
+
   <div class="container py-4">
-    <h1 class="mb-4">Live mysellauth.com Shops</h1>
-    <div class="row row-cols-1 row-cols-md-3 g-4" id="shops-container"></div>
+    <!-- Stats Row -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card stats-card text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h5 class="card-title mb-0" id="total-shops">0</h5>
+                <p class="card-text">Total Shops</p>
+              </div>
+              <i class="fas fa-store fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-success text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h5 class="card-title mb-0" id="live-shops">0</h5>
+                <p class="card-text">Live Shops</p>
+              </div>
+              <i class="fas fa-check-circle fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-danger text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h5 class="card-title mb-0" id="dead-shops">0</h5>
+                <p class="card-text">Dead Shops</p>
+              </div>
+              <i class="fas fa-times-circle fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-info text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h5 class="card-title mb-0" id="new-shops">0</h5>
+                <p class="card-text">New Today</p>
+              </div>
+              <i class="fas fa-plus-circle fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2><i class="fas fa-globe me-2"></i>Discovered SellAuth Shops</h2>
+          <div>
+            <button class="btn btn-outline-light me-2" onclick="refreshShops()">
+              <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-outline-primary" onclick="toggleView()">
+              <i class="fas fa-th"></i> Grid View
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shops Container -->
+    <div class="row" id="shops-container"></div>
   </div>
 
   <script>
     const socket = io();
     const container = document.getElementById("shops-container");
+    const totalShopsEl = document.getElementById("total-shops");
+    const liveShopsEl = document.getElementById("live-shops");
+    const deadShopsEl = document.getElementById("dead-shops");
+    const newShopsEl = document.getElementById("new-shops");
+    const lastUpdatedEl = document.getElementById("last-updated");
+    const connectionStatusEl = document.getElementById("connection-status");
 
-    function addShop(shop) {
-      const col = document.createElement("div");
-      col.className = "col";
-      const imgPath = "/screenshots/" + shop.replace(/\./g, "_") + ".png";
-      col.innerHTML = `
-        <div class="card bg-secondary text-white">
-          <img src="${imgPath}" class="card-img-top">
-          <div class="card-body">
-            <h5 class="card-title">${shop}</h5>
-          </div>
-        </div>
-      `;
-      container.prepend(col);
+    let shops = [];
+    let isGridView = true;
+
+    function updateStats() {
+      const total = shops.length;
+      const live = shops.filter(shop => shop.status === 'live').length;
+      const dead = shops.filter(shop => shop.status === 'dead').length;
+      const newToday = shops.filter(shop => isNewToday(shop.discoveredAt)).length;
+
+      totalShopsEl.textContent = total;
+      liveShopsEl.textContent = live;
+      deadShopsEl.textContent = dead;
+      newShopsEl.textContent = newToday;
     }
 
-    // Load initial shops
-    socket.on("initialShops", (shops) => shops.forEach(shop => addShop(shop)));
+    function isNewToday(timestamp) {
+      const today = new Date();
+      const discovered = new Date(timestamp);
+      return discovered.toDateString() === today.toDateString();
+    }
 
-    // Add new shop live
-    socket.on("newShop", (shop) => addShop(shop));
+    function formatTime(timestamp) {
+      return new Date(timestamp).toLocaleString();
+    }
+
+    function createShopCard(shop) {
+      const statusClass = shop.status === 'live' ? 'status-live' : 'status-dead';
+      const statusIcon = shop.status === 'live' ? 'check-circle' : 'times-circle';
+      const imgPath = `/screenshots/${shop.domain.replace(/\./g, '_')}.png`;
+
+      if (isGridView) {
+        return `
+          <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+            <div class="card bg-secondary text-white h-100">
+              <div class="card-img-container" style="height: 200px; overflow: hidden;">
+                <img src="${imgPath}" class="card-img-top screenshot w-100" alt="${shop.domain}"
+                     onerror="this.src='https://via.placeholder.com/300x200/6c757d/ffffff?text=No+Screenshot'">
+              </div>
+              <div class="card-body d-flex flex-column">
+                <h6 class="card-title">
+                  <i class="fas fa-${statusIcon} ${statusClass} me-2"></i>
+                  ${shop.domain}
+                </h6>
+                <div class="mt-auto">
+                  <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    Discovered: ${formatTime(shop.discoveredAt)}
+                  </small>
+                  ${shop.lastChecked ? `<br><small class="text-muted">
+                    <i class="fas fa-eye me-1"></i>
+                    Last checked: ${formatTime(shop.lastChecked)}
+                  </small>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="col-12 mb-2">
+            <div class="card bg-secondary text-white">
+              <div class="card-body">
+                <div class="row align-items-center">
+                  <div class="col-md-4">
+                    <h6 class="mb-0">
+                      <i class="fas fa-${statusIcon} ${statusClass} me-2"></i>
+                      ${shop.domain}
+                    </h6>
+                  </div>
+                  <div class="col-md-2">
+                    <span class="badge bg-${shop.status === 'live' ? 'success' : 'danger'}">
+                      ${shop.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <div class="col-md-3">
+                    <small class="text-muted">
+                      Discovered: ${formatTime(shop.discoveredAt)}
+                    </small>
+                  </div>
+                  <div class="col-md-3">
+                    <small class="text-muted">
+                      ${shop.lastChecked ? `Last checked: ${formatTime(shop.lastChecked)}` : 'Not checked yet'}
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function renderShops() {
+      container.innerHTML = shops.map(shop => createShopCard(shop)).join('');
+      updateStats();
+      lastUpdatedEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+    }
+
+    function addOrUpdateShop(shop) {
+      const existingIndex = shops.findIndex(s => s.domain === shop.domain);
+      if (existingIndex >= 0) {
+        shops[existingIndex] = { ...shops[existingIndex], ...shop };
+      } else {
+        shops.unshift(shop); // Add to beginning
+      }
+      renderShops();
+    }
+
+    function refreshShops() {
+      socket.emit('refresh');
+    }
+
+    function toggleView() {
+      isGridView = !isGridView;
+      const btn = document.querySelector('button[onclick="toggleView()"]');
+      btn.innerHTML = `<i class="fas fa-${isGridView ? 'th' : 'list'}"></i> ${isGridView ? 'Grid' : 'List'} View`;
+      renderShops();
+    }
+
+    // Socket event handlers
+    socket.on('connect', () => {
+      connectionStatusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
+    });
+
+    socket.on('disconnect', () => {
+      connectionStatusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+    });
+
+    socket.on('initialShops', (initialShops) => {
+      shops = initialShops;
+      renderShops();
+    });
+
+    socket.on('newShop', (shop) => {
+      addOrUpdateShop(shop);
+    });
+
+    socket.on('shopUpdate', (shop) => {
+      addOrUpdateShop(shop);
+    });
+
+    // Initial load
+    socket.emit('getShops');
   </script>
 </body>
 </html>
