@@ -1,0 +1,11 @@
+{
+  "install": "npm install",
+  "restart": "npm start",
+  "watch": {
+    "ignore": [
+      "node_modules",
+      "screenshots",
+      "seen.json"
+    ]
+  }
+}
