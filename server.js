@@ -102,4 +102,16 @@ module.exports = {
   addOrUpdateShop
 };
 
+// Start tracker after server is configured
+const { startTracker, getAllShops } = require("./tracker");
+const { startBot } = require("./discordBot");
+
+startTracker((shopData) => {
+  addOrUpdateShop(shopData.domain, shopData.status, shopData.lastChecked);
+});
+
+startBot({
+  getAll: getAllShops
+});
+
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

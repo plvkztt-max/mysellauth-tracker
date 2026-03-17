@@ -14,7 +14,8 @@
     "form-data": "^4.0.1",
     "node-cron": "^3.0.0",
     "puppeteer": "^23.3.1",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "discord.js": "^14.14.0"
   },
   "engines": {
     "node": "20.x"

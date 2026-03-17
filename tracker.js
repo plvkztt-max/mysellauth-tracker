@@ -1,14 +1,8 @@
-require('dotenv').config();
 const axios = require("axios");
 const fs = require("fs");
 const cron = require("node-cron");
 const puppeteer = require("puppeteer");
 const FormData = require("form-data");
-
-// Use SERVER_URL from Railway
-const ioClient = require("socket.io-client");
-const DASHBOARD_URL = process.env.SERVER_URL;
-const socket = ioClient(DASHBOARD_URL);
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const DOMAIN = process.env.DOMAIN || "mysellauth.com";
@@ -22,6 +16,10 @@ if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR);
 // Load seen shops
 let seen = [];
 if (fs.existsSync(SEEN_FILE)) seen = JSON.parse(fs.readFileSync(SEEN_FILE));
+
+function saveSeen() {
+  fs.writeFileSync(SEEN_FILE, JSON.stringify(seen, null, 2));
+}
 
 // Get subdomains from crt.sh
 async function getSubdomains() {
@@ -95,56 +93,54 @@ async function sendDiscord(subdomain, screenshotPath) {
 }
 
 // Main function
-async function checkShops() {
+async function checkShops(emitShop) {
   console.log("Checking for new shops...");
   const subs = await getSubdomains();
 
   for (const s of subs) {
-    if (!seen.includes(s)) {
-      const isLive = await checkLive(s);
-      const status = isLive ? 'live' : 'dead';
-      const lastChecked = Date.now();
+    const isNew = !seen.includes(s);
+    const isLive = await checkLive(s);
+    const status = isLive ? 'live' : 'dead';
+    const now = Date.now();
 
+    if (isNew) {
       if (isLive) {
         const shotPath = await screenshot(s);
         console.log(`New LIVE shop: ${s}`);
-
         await sendDiscord(s, shotPath);
       } else {
         console.log(`New DEAD shop: ${s}`);
       }
 
-      // Update dashboard with full shop data
-      const shopData = {
-        domain: s,
-        status: status,
-        discoveredAt: lastChecked,
-        lastChecked: lastChecked
-      };
-
-      socket.emit("newShop", shopData);
-
       seen.push(s);
       saveSeen();
-    } else {
-      // Update existing shops' status
-      const isLive = await checkLive(s);
-      const status = isLive ? 'live' : 'dead';
-      const lastChecked = Date.now();
-
-      const shopData = {
-        domain: s,
-        status: status,
-        lastChecked: lastChecked
-      };
-
-      socket.emit("shopUpdate", shopData);
     }
+
+    const shopData = {
+      domain: s,
+      status,
+      discoveredAt: isNew ? now : undefined,
+      lastChecked: now
+    };
+
+    emitShop(shopData);
   }
 }
 
-// Run every 5 minutes
-cron.schedule("*/5 * * * *", () => checkShops());
+function startTracker(emitShop) {
+  if (typeof emitShop !== 'function') {
+    throw new Error('startTracker requires an emitShop callback function');
+  }
 
-// Run immediately
-checkShops();
+  // Run every 5 minutes
+  cron.schedule("*/5 * * * *", () => checkShops(emitShop));
+
+  // Run immediately
+  checkShops(emitShop);
+}
+
+function getAllShops() {
+  return shops;
+}
+
+module.exports = { startTracker, getAllShops };
