@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log*
+yarn-debug.log*
+Dockerfile
+.git
+.env
+.vscode
+**/node_modules

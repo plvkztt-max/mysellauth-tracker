@@ -2,11 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY project/package*.json ./
+COPY package*.json ./
 
 RUN npm install
 
-COPY project/ ./
+COPY . ./
 
 COPY public/ ./public/
 
