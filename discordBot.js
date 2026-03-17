@@ -3,6 +3,8 @@ const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuild
 // NOTE: Keep your Discord token safe. Never commit it to source control.
 //       Use environment variables (DISCORD_TOKEN, DISCORD_GUILD_ID, DISCORD_CHANNEL_ID).
 
+console.log('✅ Discord bot module loaded');
+
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;

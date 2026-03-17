@@ -1,14 +1,28 @@
 require('dotenv').config();
+
+// Top-level error handling
+process.on('uncaughtException', (err) => {
+  console.error('🔴 UNCAUGHT EXCEPTION:', err.message);
+  console.error('Stack:', err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔴 UNHANDLED REJECTION:', reason);
+  console.error('Promise:', promise);
+  process.exit(1);
+});
+
+console.log('✅ Server starting...');
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const fs = require("fs");
 
-console.log('Starting SellAuth Tracker...');
-console.log('Discord Token:', process.env.DISCORD_TOKEN ? 'SET' : 'NOT SET');
-console.log('Discord Guild ID:', process.env.DISCORD_GUILD_ID ? 'SET' : 'NOT SET');
-console.log('Discord Channel ID:', process.env.DISCORD_CHANNEL_ID ? 'SET' : 'NOT SET');
+console.log('✅ All modules imported');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +30,11 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const SEEN_FILE = "seen.json";
+
+console.log('✅ Express and Socket.IO initialized');
+console.log('Discord Token:', process.env.DISCORD_TOKEN ? 'SET' : 'NOT SET');
+console.log('Discord Guild ID:', process.env.DISCORD_GUILD_ID ? 'SET' : 'NOT SET');
+console.log('Discord Channel ID:', process.env.DISCORD_CHANNEL_ID ? 'SET' : 'NOT SET');
 
 // Global shops data
 let shops = [];
@@ -134,36 +153,43 @@ module.exports = {
 };
 
 // Start tracker after server is configured
+console.log('📍 About to require tracker...');
 const { startTracker, getAllShops } = require("./tracker");
+
+console.log('📍 About to require Discord bot...');
 const { startBot } = require("./discordBot");
 
 console.log('Loading tracker and bot...');
 
 try {
+  console.log('📍 Starting tracker...');
   startTracker((shopData) => {
     addOrUpdateShop(shopData.domain, shopData.status, shopData.lastChecked);
   });
-  console.log('Tracker started successfully');
+  console.log('✅ Tracker started successfully');
 } catch (err) {
-  console.error('Error starting tracker:', err.message);
+  console.error('❌ Error starting tracker:', err.message);
+  console.error('Stack:', err.stack);
 }
 
 try {
+  console.log('📍 Starting Discord bot...');
   startBot({
     getAll: getAllShops,
     onLive: onLiveShop
   });
-  console.log('Discord bot started');
+  console.log('✅ Discord bot started');
 } catch (err) {
-  console.error('Error starting Discord bot:', err.message);
+  console.error('❌ Error starting Discord bot:', err.message);
+  console.error('Stack:', err.stack);
 }
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  console.error('🔴 Uncaught Exception:', err);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

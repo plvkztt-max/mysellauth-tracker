@@ -4,6 +4,8 @@ const cron = require("node-cron");
 const puppeteer = require("puppeteer");
 const FormData = require("form-data");
 
+console.log('✅ Tracker module loaded');
+
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const DOMAIN = process.env.DOMAIN || "mysellauth.com";
 const ROLE_ID = process.env.ROLE_ID;
