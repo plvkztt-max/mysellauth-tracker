@@ -10,6 +10,7 @@ const CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
 
 let client;
 let commandRegistered = false;
+let shopPublisher; // Store the publisher object for use in event handlers
 
 async function startBot(publishShop) {
   if (!TOKEN) {
@@ -18,6 +19,7 @@ async function startBot(publishShop) {
   }
 
   console.log('Initializing Discord bot with token and IDs...');
+  shopPublisher = publishShop; // Save the publisher
 
   client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
@@ -73,7 +75,7 @@ async function startBot(publishShop) {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'shops') {
-      const shops = publishShop.getAll();
+      const shops = shopPublisher.getAll();
       const live = shops.filter(s => s.status === 'live').length;
       const dead = shops.filter(s => s.status === 'dead').length;
 
@@ -95,7 +97,7 @@ async function startBot(publishShop) {
     }
 
     if (interaction.commandName === 'live') {
-      const shops = publishShop.getAll().filter(s => s.status === 'live');
+      const shops = shopPublisher.getAll().filter(s => s.status === 'live');
       const embed = new EmbedBuilder()
         .setTitle('Live SellAuth Shops')
         .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No live shops found.')
@@ -106,7 +108,7 @@ async function startBot(publishShop) {
     }
 
     if (interaction.commandName === 'dead') {
-      const shops = publishShop.getAll().filter(s => s.status === 'dead');
+      const shops = shopPublisher.getAll().filter(s => s.status === 'dead');
       const embed = new EmbedBuilder()
         .setTitle('Dead SellAuth Shops')
         .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No dead shops found.')
