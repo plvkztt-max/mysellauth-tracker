@@ -69,53 +69,74 @@ async function startBot(publishShop) {
 
   client.on('error', (err) => {
     console.error('Discord bot error:', err.message);
+    console.error('Error stack:', err.stack);
   });
 
   client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    try {
+      if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === 'shops') {
-      const shops = shopPublisher.getAll();
-      const live = shops.filter(s => s.status === 'live').length;
-      const dead = shops.filter(s => s.status === 'dead').length;
+      if (interaction.commandName === 'shops') {
+        if (!shopPublisher || !shopPublisher.getAll) {
+          await interaction.reply({ content: 'Shop data not ready yet', ephemeral: true });
+          return;
+        }
+        const shops = shopPublisher.getAll();
+        const live = shops.filter(s => s.status === 'live').length;
+        const dead = shops.filter(s => s.status === 'dead').length;
 
-      const embed = new EmbedBuilder()
-        .setTitle('SellAuth shops overview')
-        .setDescription(`Total: **${shops.length}**\nLive: **${live}**\nDead: **${dead}**`)
-        .setColor(0x00AE86)
-        .setTimestamp();
+        const embed = new EmbedBuilder()
+          .setTitle('SellAuth shops overview')
+          .setDescription(`Total: **${shops.length}**\nLive: **${live}**\nDead: **${dead}**`)
+          .setColor(0x00AE86)
+          .setTimestamp();
 
-      if (shops.length > 0) {
-        embed.addFields({
-          name: 'Latest discovered',
-          value: shops.slice(0, 5).map(s => `• ${s.domain} (${s.status})`).join('\n'),
-          inline: false
-        });
+        if (shops.length > 0) {
+          embed.addFields({
+            name: 'Latest discovered',
+            value: shops.slice(0, 5).map(s => `• ${s.domain} (${s.status})`).join('\n'),
+            inline: false
+          });
+        }
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
       }
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
+      if (interaction.commandName === 'live') {
+        if (!shopPublisher || !shopPublisher.getAll) {
+          await interaction.reply({ content: 'Shop data not ready yet', ephemeral: true });
+          return;
+        }
+        const shops = shopPublisher.getAll().filter(s => s.status === 'live');
+        const embed = new EmbedBuilder()
+          .setTitle('Live SellAuth Shops')
+          .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No live shops found.')
+          .setColor(0x00AE86)
+          .setTimestamp();
 
-    if (interaction.commandName === 'live') {
-      const shops = shopPublisher.getAll().filter(s => s.status === 'live');
-      const embed = new EmbedBuilder()
-        .setTitle('Live SellAuth Shops')
-        .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No live shops found.')
-        .setColor(0x00AE86)
-        .setTimestamp();
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+      }
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
+      if (interaction.commandName === 'dead') {
+        if (!shopPublisher || !shopPublisher.getAll) {
+          await interaction.reply({ content: 'Shop data not ready yet', ephemeral: true });
+          return;
+        }
+        const shops = shopPublisher.getAll().filter(s => s.status === 'dead');
+        const embed = new EmbedBuilder()
+          .setTitle('Dead SellAuth Shops')
+          .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No dead shops found.')
+          .setColor(0xDC3545)
+          .setTimestamp();
 
-    if (interaction.commandName === 'dead') {
-      const shops = shopPublisher.getAll().filter(s => s.status === 'dead');
-      const embed = new EmbedBuilder()
-        .setTitle('Dead SellAuth Shops')
-        .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No dead shops found.')
-        .setColor(0xDC3545)
-        .setTimestamp();
-
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    } catch (err) {
+      console.error('Interaction error:', err.message);
+      console.error('Interaction error stack:', err.stack);
+      try {
+        await interaction.reply({ content: 'An error occurred!', ephemeral: true });
+      } catch {}
     }
   });
 

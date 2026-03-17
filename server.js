@@ -148,28 +148,15 @@ try {
   console.error('Error starting tracker:', err.message);
 }
 
-const liveShopListeners = [];
-
-function onLiveShop(callback) {
-  if (typeof callback === 'function') {
-    liveShopListeners.push(callback);
-  }
-}
-
-function emitLiveShop(shop) {
-  liveShopListeners.forEach(cb => {
-    try {
-      cb(shop);
-    } catch (err) {
-      console.warn('Live shop listener error:', err.message);
-    }
+try {
+  startBot({
+    getAll: getAllShops,
+    onLive: onLiveShop
   });
+  console.log('Discord bot started');
+} catch (err) {
+  console.error('Error starting Discord bot:', err.message);
 }
-
-startBot({
-  getAll: getAllShops,
-  onLive: onLiveShop
-});
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
