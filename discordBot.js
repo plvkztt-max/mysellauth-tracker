@@ -1,5 +1,9 @@
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder } = require('discord.js');
 
+// NOTE: Keep your Discord token safe. Never commit it to source control.
+//       Use environment variables (DISCORD_TOKEN, DISCORD_GUILD_ID, DISCORD_CHANNEL_ID).
+
+
 const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
@@ -31,6 +35,26 @@ async function startBot(publishShop) {
         channel.send('✅ SellAuth tracker bot is online.');
       }
     }
+
+    if (publishShop && typeof publishShop.onLive === 'function') {
+      publishShop.onLive((shop) => {
+        if (!CHANNEL_ID) return;
+        client.channels.fetch(CHANNEL_ID).then(channel => {
+          if (!channel || !channel.send) return;
+          const embed = new EmbedBuilder()
+            .setTitle('🚨 New Live SellAuth Shop')
+            .setDescription(`**${shop.domain}** is now live!`)
+            .addFields(
+              { name: 'Status', value: shop.status, inline: true },
+              { name: 'Discovered', value: new Date(shop.discoveredAt).toLocaleString(), inline: true }
+            )
+            .setColor(0x00AE86)
+            .setTimestamp();
+
+          channel.send({ embeds: [embed] });
+        }).catch(() => null);
+      });
+    }
   });
 
   client.on('interactionCreate', async (interaction) => {
@@ -57,6 +81,28 @@ async function startBot(publishShop) {
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
+
+    if (interaction.commandName === 'live') {
+      const shops = publishShop.getAll().filter(s => s.status === 'live');
+      const embed = new EmbedBuilder()
+        .setTitle('Live SellAuth Shops')
+        .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No live shops found.')
+        .setColor(0x00AE86)
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (interaction.commandName === 'dead') {
+      const shops = publishShop.getAll().filter(s => s.status === 'dead');
+      const embed = new EmbedBuilder()
+        .setTitle('Dead SellAuth Shops')
+        .setDescription(shops.length ? shops.map(s => `• ${s.domain}`).join('\n') : 'No dead shops found.')
+        .setColor(0xDC3545)
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
   });
 
   await client.login(TOKEN);
@@ -68,7 +114,9 @@ async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
 
   const commands = [
-    new SlashCommandBuilder().setName('shops').setDescription('Show latest SellAuth shops found.')
+    new SlashCommandBuilder().setName('shops').setDescription('Show latest SellAuth shops found.'),
+    new SlashCommandBuilder().setName('live').setDescription('Show currently live SellAuth shops.'),
+    new SlashCommandBuilder().setName('dead').setDescription('Show currently dead SellAuth shops.')
   ].map(cmd => cmd.toJSON());
 
   try {

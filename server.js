@@ -65,11 +65,31 @@ io.on("connection", socket => {
   socket.on("shopUpdate", (shopData) => {
     addOrUpdateShop(shopData.domain, shopData.status, shopData.lastChecked);
   });
+});
+
+const liveShopListeners = [];
+
+function onLiveShop(callback) {
+  if (typeof callback === 'function') {
+    liveShopListeners.push(callback);
+  }
+}
+
+function emitLiveShop(shop) {
+  liveShopListeners.forEach(cb => {
+    try {
+      cb(shop);
+    } catch (err) {
+      console.warn('Live shop listener error:', err.message);
+    }
+  });
+}
 
 // Function to add or update shop
 function addOrUpdateShop(domain, status = 'unknown', lastChecked = null) {
   const existingIndex = shops.findIndex(shop => shop.domain === domain);
   const now = Date.now();
+  const isNew = existingIndex === -1;
 
   if (existingIndex >= 0) {
     // Update existing
@@ -94,12 +114,18 @@ function addOrUpdateShop(domain, status = 'unknown', lastChecked = null) {
 
   // Broadcast update
   io.emit("shopUpdate", shops.find(shop => shop.domain === domain));
+
+  // Notify listeners if it's a live shop
+  if (status === 'live' && isNew) {
+    emitLiveShop(shops.find(shop => shop.domain === domain));
+  }
 }
 
 // Export functions for tracker.js
 module.exports = {
   io,
-  addOrUpdateShop
+  addOrUpdateShop,
+  onLiveShop
 };
 
 // Start tracker after server is configured
