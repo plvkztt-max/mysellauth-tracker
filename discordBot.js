@@ -13,16 +13,18 @@ let commandRegistered = false;
 
 async function startBot(publishShop) {
   if (!TOKEN) {
-    console.log('DISCORD_TOKEN not set; Discord bot disabled.');
+    console.log('DISCORD_TOKEN not set; Discord bot will not go online.');
     return;
   }
+
+  console.log('Initializing Discord bot with token and IDs...');
 
   client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
   });
 
   client.once('ready', async () => {
-    console.log(`Discord bot logged in as ${client.user.tag}`);
+    console.log(`✅ Discord bot logged in as ${client.user.tag}`);
 
     if (GUILD_ID && !commandRegistered) {
       await registerCommands();
@@ -30,13 +32,19 @@ async function startBot(publishShop) {
     }
 
     if (CHANNEL_ID) {
-      const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
+      const channel = await client.channels.fetch(CHANNEL_ID).catch((err) => {
+        console.error('Failed to fetch channel:', err.message);
+        return null;
+      });
       if (channel) {
-        channel.send('✅ SellAuth tracker bot is online.');
+        channel.send('✅ SellAuth tracker bot is online and monitoring for new shops.').catch(err => {
+          console.error('Failed to send startup message:', err.message);
+        });
       }
     }
 
     if (publishShop && typeof publishShop.onLive === 'function') {
+      console.log('Setting up live shop notifications...');
       publishShop.onLive((shop) => {
         if (!CHANNEL_ID) return;
         client.channels.fetch(CHANNEL_ID).then(channel => {
@@ -51,10 +59,14 @@ async function startBot(publishShop) {
             .setColor(0x00AE86)
             .setTimestamp();
 
-          channel.send({ embeds: [embed] });
+          channel.send({ embeds: [embed] }).catch(() => null);
         }).catch(() => null);
       });
     }
+  });
+
+  client.on('error', (err) => {
+    console.error('Discord bot error:', err.message);
   });
 
   client.on('interactionCreate', async (interaction) => {
@@ -105,7 +117,12 @@ async function startBot(publishShop) {
     }
   });
 
-  await client.login(TOKEN);
+  try {
+    console.log('Logging into Discord...');
+    await client.login(TOKEN);
+  } catch (err) {
+    console.error('Failed to login to Discord:', err.message);
+  }
 }
 
 async function registerCommands() {

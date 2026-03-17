@@ -5,6 +5,11 @@ const { Server } = require("socket.io");
 const path = require("path");
 const fs = require("fs");
 
+console.log('Starting SellAuth Tracker...');
+console.log('Discord Token:', process.env.DISCORD_TOKEN ? 'SET' : 'NOT SET');
+console.log('Discord Guild ID:', process.env.DISCORD_GUILD_ID ? 'SET' : 'NOT SET');
+console.log('Discord Channel ID:', process.env.DISCORD_CHANNEL_ID ? 'SET' : 'NOT SET');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -132,12 +137,46 @@ module.exports = {
 const { startTracker, getAllShops } = require("./tracker");
 const { startBot } = require("./discordBot");
 
-startTracker((shopData) => {
-  addOrUpdateShop(shopData.domain, shopData.status, shopData.lastChecked);
-});
+console.log('Loading tracker and bot...');
+
+try {
+  startTracker((shopData) => {
+    addOrUpdateShop(shopData.domain, shopData.status, shopData.lastChecked);
+  });
+  console.log('Tracker started successfully');
+} catch (err) {
+  console.error('Error starting tracker:', err.message);
+}
+
+const liveShopListeners = [];
+
+function onLiveShop(callback) {
+  if (typeof callback === 'function') {
+    liveShopListeners.push(callback);
+  }
+}
+
+function emitLiveShop(shop) {
+  liveShopListeners.forEach(cb => {
+    try {
+      cb(shop);
+    } catch (err) {
+      console.warn('Live shop listener error:', err.message);
+    }
+  });
+}
 
 startBot({
-  getAll: getAllShops
+  getAll: getAllShops,
+  onLive: onLiveShop
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
